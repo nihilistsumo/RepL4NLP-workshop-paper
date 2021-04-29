@@ -85,13 +85,6 @@ It is challenging to derive training signals directly from the clustering ground
 \section{Related work}
 Traditionally, text clustering is achieved by employing a distance-based clustering algorithm (e.g. KMeans) on vector representations of documents (e.g. TF-IDF~\cite{jones1972statistical}). Even in recent works, authors have followed this overall approach while improving the text representation method~\cite{chen2017improved,xu2017self,hadifar2019self} or exploring different similarity metrics between the vectors that governs the clustering algorithm through pairwise binary constraints~\cite{basu2002semi,kulis2009semi}. In this work, we focus on the former - representation learning of documents, suitable for text clustering.
 
-\begin{figure*}
-    \centering
-    \includegraphics[scale=0.58]{acl-ijcnlp2021-templates/bbcluster_arch.png}
-    \caption{Architecture of the proposed supervised clustering approach}
-    \label{fig:bbc_arch}
-\end{figure*}
-
 \textit{Deep clustering}~\cite{min2018survey} is an active field of research that aims to utilize recent advancements of deep learning techniques to improve supervised clustering. The primary focus is to learn suitable representation space that optimizes some clustering criterion (e.g. cluster assignment loss) along with a representation criterion (e.g. reconstruction loss)~\cite{xie2016unsupervised,li2018discriminatively,ghasedi2017deep,jiang2016variational}. It has also been shown that clustering criterions alone are sufficient to train such representation space~\cite{yang2016joint}. However, all these works are unsupervised in a sense that none of them attempts to receive direct supervision from a clustering ground truth. Motivated by earlier works that learn a representation model under pairwise binary constraints, Chang et al.~\cite{chang2017deep} envisions the clustering task as a binary classification task of paired data samples and achieves state-of-the-art results on multiple image clustering datasets. Reimers et al. proposes Sentence-BERT~\cite{reimers2019sentence} which trains a BERT-based~\cite{devlin2018bert} sentence embedding model by employing Triplet loss~\cite{dor2018learning} that uses triples of sentences as training samples where exactly two of them are from the same section of Wikipedia. Although both of these approaches are supervised, each training sample only consists of a fraction of the whole clustering instance and hence by no means the true representative of the clustering problem.
 %While some methods take a more holistic approach of jointly optimizing for cluster assignments and representations of data samples~\cite{xie2016unsupervised}, many focus solely on learning suitable representation space.  
 
@@ -102,14 +95,20 @@ The main hindrance of drawing supervision signals directly from the ground truth
 \section{Methodology}
 Our text clustering method works in two steps: 1. Train a text embedding model directly from example clusters of text snippets, 2. Cluster the trained embedding vectors using hierarchical agglomerative clustering (HAC). Our primary contribution lies in the training strategy of step 1 which we refer here as \textbf{C}lustering \textbf{O}ptimization as \textbf{B}lackbox (\textbf{COB}). We describe COB in the following sections.
 
-\subsection{Overall approach}\label{sec:app} We envision supervised text clustering as a combinatorial problem. Let $\mathcal{P}$ be a set of $N$ documents and $Y$ be the set of all possible $k$-partitions of set $\mathcal{P}$. Also let $V_\phi$ be an embedding model with trainable parameters $\phi$ and $V_\phi(\mathcal{P})$ be the set of representation vectors of each of the documents in $\mathcal{P}$ obtained using $V_\phi$. Based on the euclidean distances between vectors in $V_\phi(\mathcal{P})$, a clustering algorithm chooses $y \in Y$ that minimizes some linear cost function $c(V_\phi(\mathcal{P}), y)$ (e.g. intra-cluster distances for HAC). Hence the clustering process can be expressed as the following mapping:
+\subsection{Overall approach}\label{sec:app} We envision supervised text clustering as a combinatorial problem. Let $\mathcal{P}$ be a set of $N$ documents and $Y$ be the set of all possible $k$-partitions of set $\mathcal{P}$. Also let $V_\phi$ be an embedding model with trainable parameters $\phi$. We obtain the set of representation vectors $V_\phi(\mathcal{P})$ for each of the documents in $\mathcal{P}$ using the embedding model, $V_\phi$. Based on the euclidean distances between representation vectors in $V_\phi(\mathcal{P})$, a clustering algorithm choose a particular $k$-partition $\hat{y} \in Y$ that minimizes some linear cost function $c(V_\phi(\mathcal{P}), y)$ (e.g. intra-cluster distances for HAC). Hence the clustering process can be expressed as the following mapping:
 \begin{align*}
 V_\phi(\mathcal{P}) \mapsto \hat{y} \quad \textrm{such that} \quad \hat{y} = \argmin_{y \in Y} c(V_\phi(\mathcal{P}), y) \\ 
 \end{align*}
-The clustering ground truth $y^* \in Y$ is a particular $k-$partition of set $\mathcal{P}$. The training process of COB is governed by a loss function $\mathcal{L}(y^*,\hat{y})$ such that a clustering metric is maximized. Naturally, $\mathcal{L}$ should be designed in such a way that it inversely correlates with the clustering metric we want to maximize.
+The clustering ground truth $y^* \in Y$ is the ideal $k$-partition of set $\mathcal{P}$. The training process of COB is governed by a loss function $\mathcal{L}(y^*,\hat{y})$ such that a clustering metric is maximized. Naturally, in order to maximize the clustering metric, $\mathcal{L}$ should be designed to inversely correlate with the clustering metric.
 
 However, we want to emphasize here that the cost function $c(V_\phi(\mathcal{P}), y)$ is minimized as part of the clustering algorithm itself. The supervised approach we describe here, does not interfere with that. In other words, the clustering process is isolated as a \textit{blackbox} component in its entirety. The minimization of the cost function $c(V_\phi(\mathcal{P}, y)$ takes place inside this blackbox and remains opaque for our supervised model. As a result, COB is not dependent on the exact clustering algorithm we choose to implement inside the blackbox. In this work however, we choose to use HAC as our clustering algorithm. Again, we choose to optimize for RAND index in this work but our method is relevant for other clustering metrics as well (e.g. purity).
 
+\begin{figure*}
+    \centering
+    \includegraphics[scale=0.58]{acl-ijcnlp2021-templates/bbcluster_arch.png}
+    \caption{Architecture of the proposed supervised clustering approach}
+    \label{fig:bbc_arch}
+\end{figure*}
 \subsection{Optimizing for RAND index} Our goal is to train the embedding model, $V_\phi$, such that the resulting clusters maximize a clustering metric of our choice. In this work, we focus on optimizing for RAND index, a widely used clustering metric, which measures the similarity between the generated clusters and the clustering ground truth. If $y^* \in Y$ be the ground truth partition or the ideal clustering of $\mathcal{P}$, then the clustering quality of a candidate cluster $\hat{y}$ is expressed in terms of RAND index (RI):
 \begin{align*}
 RI &= \frac{a+b}{\binom{n}{2}}
@@ -126,18 +125,20 @@ The solution to the clustering problem is expressed in form of an adjacency matr
 \begin{align*}
 A_{ij} = 1 \textrm{ if } i,j \textrm{ share same cluster and } 0 \textrm{ otherwise}    
 \end{align*}
-Similarly, the clustering ground truth is expressed through another adjacency matrix, $T$. Now, we can express ARI using the following form:
+Similarly, the clustering ground truth is expressed through another adjacency matrix, $T$. Now, we can express RI using the following form:
 \begin{align*}
     RI=1-\frac{\sum |A-T|}{n^2-n} \quad \textrm{refer to Appendix}
 \end{align*}
-It is clear from the above equation that if we want to maximize RI, we need to minimize $\sum |A-T|$ (referred as the error matrix). Hence, we design a loss function that minimizes $\sum |A-T|$. Intuitively, if we are able to produce the ideal clustering results, then $A$ and $T$ would be identical, meaning $|A-T|$ is a zero matrix. Formally, we define our loss function $\mathcal{L}$ as:
+It is clear from the above equation that if we want to maximize RI, we need to minimize $\sum |A-T|$ (referred as the error matrix). Intuitively, if we are able to produce the ideal clustering results, then $A$ and $T$ would be identical, meaning $|A-T|$ is a zero matrix. Formally, we define our loss function $\mathcal{L}$ as:
 \begin{align*}
 \mathcal{L} = \sum_{i,j} A_{i,j}(1-T_{i,j}) + T_{i,j}(1-A_{i,j})
 \end{align*}
 
-The backward pass of this training loop involves estimating gradient of $\mathcal{L}$ with respect to $D$, the input to the clustering black box. This is achieved using blackbox optimization technique and the resulting gradient is used to drive a gradient descent algorithm that eventually trains the embedding model $V_\phi$. 
+The backward pass of this training loop involves estimating gradient of the loss $\mathcal{L}$ with respect to the distance matrix $D$, the input to the clustering black box. This is achieved using blackbox backpropagation technique and the resulting gradient is used to drive a gradient descent algorithm that eventually trains the embedding model $V_\phi$. 
 
-\subsection{Regularization}\label{sec:reg} The purpose of any clustering algorithm is to identify groups of similar data points. By optimizing for a clustering metric such as RI, we learn the notion of similarity from a clustering ground truth. However, to capture clear distinction between similar and dissimilar data points, we need to train the embedding model in such a way that it projects similar data points close to each other and dissimilar data points far apart. Technically, the loss function should encourage \textit{inter-cluster} distances to increase and \textit{intra-cluster} distances to decrease. This can be incorporated into the loss function by introducing a regularizer as described below.
+\subsection{Regularization}\label{sec:reg} The purpose of any clustering algorithm is to identify groups of similar data points. By optimizing for a clustering metric such as RI, we learn the notion of similarity from a clustering ground truth. However, to capture clear distinction between similar and dissimilar data points, we need to train the embedding model in such a way that it projects similar data points close to each other and dissimilar data points far apart. This is achieved when the loss function encourages \textit{inter-cluster} distances to increase and \textit{intra-cluster} distances to decrease. Although, the HAC algorithm optimizes for similar criterion, it is separate from our training loop as we treat the clustering component as a \textit{black box}. Hence, this is incorporated into the loss function by introducing a regularizer as described below.
+% If we so not include such criterion in the loss function then the model will not learn to distinguish between similar and dissimilar data enough because two clustering results may have the same ARI whether or not the similar elements are enough far apart from the dissimilar or not. But the learned model will be prone to make mistakes for unseen clustering data. Hence, it is necessary to enforce distinguishing power along with optimizing for RI.
+
 \begin{align*}
     \mathcal{L}_{r} &= \mathcal{L} + r \cdot [\textrm{mean intra-cluster distance}\\ &- \textrm{mean inter-cluster distance}] \\
     &= \mathcal{L} + r \cdot \Bigg[\frac{\sum_{ij} D_{ij}T_{ij}}{\sum_{ij} T_{ij}} - \frac{\sum_{ij} D_{ij}(1-T_{ij})}{\sum_{ij}(1-T_{ij})}\Bigg] \\
@@ -172,7 +173,7 @@ Dataset && N & C & d & k \\ \hline
     \label{fig:wiki}
 \end{figure}
 
-Section labels in TRECCAR dataset are hierarchical. This provides an opportunity to evaluate our clustering models under different levels of granularity. As depicted in Figure \ref{fig:wiki}, passages $p_6$ and $p_7$ in article \textit{COVID 19} belong to the sections \textit{Cause} and \textit{Cause/Transmission} respectively. Under coarse view of the clustering, we will consider $p_6,p_7$ under the same topic cluster \textit{Cause}. However, for fine-grained clustering we have to consider $p_6,p_7$ under separate subtopic clusters. Fortunately, TRECCAR dataset provides both in form of \textit{top-level} (coarse) and \textit{hierarchical} (fine-grained) benchmarks. We train and evaluate our models on both flavors of the dataset. Statistics of the datasets are provided in Table \ref{tab:dat}.
+Section labels in TRECCAR dataset are hierarchical. This provides an opportunity to evaluate our clustering models under different levels of granularity. As depicted in Figure \ref{fig:wiki}, passages $p_6$ and $p_7$ in article \textit{COVID 19}  belong to the sections \textit{Cause} and \textit{Cause/Transmission} respectively. Under coarse view of the clustering, we will consider $p_6,p_7$ under the same topic cluster \textit{Cause}. However, for fine-grained clustering we have to consider $p_6,p_7$ under separate subtopic clusters. Fortunately, TRECCAR dataset provides both in form of \textit{top-level} (coarse) and \textit{hierarchical} (fine-grained) benchmarks. We train and evaluate our models on both flavors of the dataset. Statistics of the datasets are provided in Table \ref{tab:dat}.
 
 %need to find out best way to represent stats of dataset
 \begin{table}[h]
@@ -277,7 +278,7 @@ SBERT COB     & \textbf{0.178} & \textbf{0.682} \\ \hline
 n=35&&\\
 DBC           & 0.077$\blacktriangledown$ & 0.595$\blacktriangledown$ \\
 %SBERT Triplet & 0.167 & 0.675 \\
-SBERT Triplet & & \\
+SBERT Triplet & 0.152$\blacktriangledown$ & 0.665$\blacktriangledown$ \\
 SBERT COB     & 0.163 & 0.672 \\ \hline
 n=40&&\\
 DBC           & 0.066$\blacktriangledown$ & 0.582$\blacktriangledown$ \\
